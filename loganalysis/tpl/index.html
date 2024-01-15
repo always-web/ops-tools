@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>访问日志分析</title>
+        <meta charset="utf-8" />
+        <link rel="stylesheet" type="text/css" href="" />
+        <link href="./static/bootstrap-4.1.3/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <link href="./static/font-awesome-4.7.0/css/font-awesome.min.css" rel="stylesheet" type="text/css" />
+        <link href="./static/css/index.css" rel="stylesheet" type="text/css" />
+    </head>
+    <body>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12 text-center">
+                    <hr />
+                    <h1>访问日志分析</h1>
+                    <hr />
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="tile">
+                        <h3>1. 概览</h3>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="widget-small primary"><i class="icon fa fa-chain fa-3x"></i>
+                                    <div class="info">
+                                        <h4>总访问量</h4>
+                                        <p><b>{{ .HitTotal }}</b></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="widget-small info"><i class="icon fa fa-users fa-3x"></i>
+                                    <div class="info">
+                                        <h4>总用户数</h4>
+                                        <p><b>{{ .VistorsTotal.Len }}</b></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="widget-small danger"><i class="icon fa fa-line-chart fa-3x"></i>
+                                    <div class="info">
+                                        <h4>总流量</h4>
+                                        <p><b>{{ .BytesTotal|filesizeformat }}</b></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <br />
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h3>2. 状态码分布图</h3>
+                                <div id="status" style="width:100%; height:400px;"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <h3>3. 每天访问量</h3>
+                                <div id="hits" style="width:100%; height:400px;"></div>
+                            </div>
+                        </div>
+                        <br />
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h3>4. 每天用户数</h3>
+                                <div id="vistors" style="width:100%; height:400px;"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <h3>5. 每天流量</h3>
+                                <div id="bytes" style="width:100%; height:400px;"></div>
+                            </div>
+                        </div>
+                        <br />
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h3>6. 访问分布</h3>
+                                <div id="region" style="width:100%; height:400px;"></div>
+                            </div>
+                        </div>
+                        <br />
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h3>7. 访问最多TOP 10用户</h3>
+                                <table class="table table-striped table-bordered table-sm table-hover">
+                                    <thead>
+                                        <th>IP</th>
+                                        <th>访问次数</th>
+                                    </thead>
+                                    <tbody>
+                                    {{ range $index, $item := sortmap .VistorsTotal "desc" -}}
+                                        {{ if lt $index 10 }}
+                                        <tr>
+                                            <td>{{ $item.Key }}</td>
+                                            <td>{{ $item.Value }}</td>
+                                        </tr>
+                                        {{ end }}
+                                    {{- end }}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript" src="./static/jquery-3.3.1/jquery-3.3.1.min.js"></script>
+        <script type="text/javascript" src="./static/popper.js-1.14.4/umd/popper.min.js"></script>
+        <script type="text/javascript" src="./static/bootstrap-4.1.3/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="./static/echarts-2.2.7/echarts-all.js"></script>
+        <script type="text/javascript" src="./static/js/index.js"></script>
+        <script type="text/javascript">
+            jQuery(document).ready(function() {
+                // 数据
+                var days = jQuery.parseJSON({{ .Days|json }}),
+                    status_total_data = jQuery.parseJSON({{ .StatusTotal|json }}),
+                    hit_days_data = jQuery.parseJSON({{ .HitDays|json }}),
+                    bytes_days_data = jQuery.parseJSON({{ .BytesDays|json }}),
+                    vistors_days_data = jQuery.parseJSON({{ .VistorsDays|json }}),
+                    status_days_data = jQuery.parseJSON({{ .StatusDays|json }}),
+                    region_data = jQuery.parseJSON({{ .RegionTotal|json }}),
+                    region_geoCoord = jQuery.parseJSON({{ .RegionLocation|json }});
+
+                //  访问状态
+                var status_data = [];
+                jQuery.each(status_total_data, function(name, value) {
+                    status_data.push({value:value, name:name});
+                });
+
+                var status_chart = echarts.init(document.getElementById('status'));
+                status_option["series"][0]["data"] = status_data;
+                status_chart.setOption(status_option);
+
+                // 曲线/柱状
+                var day_xAxis = [],
+                    hits_data = [],
+                    vistors_data = [],
+                    bytes_data = [];
+
+                jQuery.each(days, function(index, value) {
+                    day_xAxis.push(value);
+                    hits_data.push(hit_days_data[value]);
+                    vistors_data.push( Object.keys(vistors_days_data[value]).length);
+                    bytes_data.push(bytes_days_data[value]);
+                });
+
+                // 点击量
+                var hits_chart = echarts.init(document.getElementById('hits'));
+                hits_option["xAxis"][0]["data"] = day_xAxis;
+                hits_option["series"][0]["data"] = hits_data;
+                hits_chart.setOption(hits_option);
+
+                // 访问者
+                var vistors_chart = echarts.init(document.getElementById('vistors'));
+                vistors_option["xAxis"][0]["data"] = day_xAxis;
+                vistors_option["series"][0]["data"] = vistors_data;
+                vistors_chart.setOption(vistors_option);
+
+                // 流量
+                var bytes_chart = echarts.init(document.getElementById('bytes'));
+                bytes_option["xAxis"][0]["data"] = day_xAxis;
+                bytes_option["series"][0]["data"] = bytes_data;
+                bytes_chart.setOption(bytes_option);
+
+                // 地域
+                var region_line = [];
+                var region_point = [];
+
+                jQuery.each(region_data, function(name, value) {
+                    region_line.push([{name: name}, {name:'北京', value:value}]);
+                    region_point.push({name: name, value: value});
+                });
+
+                var region_chart = echarts.init(document.getElementById('region'));
+                region_geoCoord['北京'] = [116.4551,40.2539];
+                region_option["series"][0]["geoCoord"] = region_geoCoord;
+                region_option["series"][1]["markLine"]["data"] = region_line;
+                region_option["series"][1]["markPoint"]["data"] = region_point;
+
+                region_chart.setOption(region_option);
+            });
+        </script>
+    </body>
+</html>
